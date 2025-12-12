@@ -8,7 +8,7 @@ import FirebaseManager from "./firebase-manager.js";
 
 /**
  * app.js: El Orquestador
- * (Versión Final: Lógica de recuperación de audio al recargar)
+ * (Versión Final: El aviso de 'Audio Pausado' se omite en el Countdown)
  */
 const App = {
   _isAudioStarted: false,
@@ -104,21 +104,24 @@ const App = {
     // 1. RENDERIZAR VISUALMENTE
     Render.section(sectionId);
 
-    // 2. VERIFICAR PERMISO DE AUDIO (Solución al problema de recarga)
-    if (!this._isAudioStarted && sectionId !== "intro") {
+    // 2. VERIFICAR PERMISO DE AUDIO
+    // MODIFICADO: Agregamos '&& sectionId !== "countdown"' para no molestar ahí.
+    if (
+      !this._isAudioStarted &&
+      sectionId !== "intro" &&
+      sectionId !== "countdown"
+    ) {
       console.warn(
         "[App.js] Audio bloqueado por recarga. Solicitando interacción..."
       );
 
-      // Mostramos el Overlay y esperamos el clic para continuar
       Render.showResumeOverlay(() => {
         console.log("[App.js] Audio reactivado por usuario.");
         this._isAudioStarted = true;
-        // Una vez reactivado, ejecutamos la lógica de audio normal
         this._executeAudioLogic(sectionId, sectionData);
       });
     } else {
-      // Flujo normal (si venimos navegando desde intro)
+      // Flujo directo (Intentará reproducir audio aunque falle si no hubo interacción previa)
       this._executeAudioLogic(sectionId, sectionData);
     }
 
@@ -140,7 +143,6 @@ const App = {
     this._preloadNextSections(sectionId);
   },
 
-  // --- NUEVA HELPER FUNCTION: Centraliza la lógica de BGM y Narración ---
   _executeAudioLogic(sectionId, sectionData) {
     // 1. Música de Fondo (BGM)
     let bgmType = "main";
@@ -153,6 +155,9 @@ const App = {
       else if (bgmType === "final") AudioManager.playBGMFinal();
       else AudioManager.stopAllBGM();
       this._activeBGMType = bgmType;
+    } else if (sectionId === "countdown") {
+      // Intento forzado para countdown si recargamos ahí (puede fallar sin interacción)
+      AudioManager.playBGMFinal();
     }
 
     // 2. Referencias Video

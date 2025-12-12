@@ -314,7 +314,8 @@ const Render = {
     replayContainer.style.transition = "opacity 1.5s ease";
 
     const btn = document.createElement("button");
-    btn.textContent = "🎬 Ver video otra vez";
+    btn.textContent = "Ver video otra vez";
+    btn.style.fontSize = "2rem";
     btn.style.opacity = "0.8";
     btn.addEventListener("click", () => {
       this._callbacks.onNavigate("final");
@@ -326,7 +327,7 @@ const Render = {
         replayContainer.style.opacity = "1";
         replayContainer.style.pointerEvents = "auto";
       }
-    }, 4000);
+    }, 10000);
 
     container.appendChild(display);
     container.appendChild(replayContainer);
