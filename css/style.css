@@ -12,16 +12,34 @@ html {
 }
 
 body {
-  min-height: 100vh;
-  font-family: "Verlag-Light", sans-serif;
-  color: #ffffff;
-  background-color: #000;
+  margin: 0;
+  font-family: "Inter", sans-serif;
+  color: var(--text-color);
+  /* Quitamos el background de aquí para evitar el salto */
+  background-color: #0a0a0a;
+  min-height: 100dvh; /* Usamos 'dvh' (Dynamic Viewport Height) para mejor soporte móvil */
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* NUEVO: El fondo se aplica aquí, fijo e inmune al scroll */
+body::before {
+  content: "";
+  position: fixed; /* Esto es la clave: se queda quieto */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1; /* Se va al fondo */
+
+  /* Aquí mueves tu imagen de fondo actual */
+  background: radial-gradient(circle at center, #1a2a3a 0%, #000000 100%);
+  /* Si usas una imagen, ponla aquí: */
+  /* background-image: url('../assets/tu-fondo.jpg'); */
+
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-attachment: fixed;
-  /* Permite el scroll vertical si el contenido es muy largo */
-  overflow-y: auto;
 }
 
 /* ============================= */
@@ -295,14 +313,33 @@ body.view-final2 {
 /* ... (el resto de tus estilos: .countdown-display, .admin-header, etc.) ... */
 
 /* --- ESTILOS DE COUNTDOWN (VERTICAL) --- */
-.video-container video {
-  width: 100vw;
-  height: 100vh;
-  object-fit: cover;
-  position: fixed;
+.video-container {
+  position: fixed !important; /* Forzar posición fija */
   top: 0;
   left: 0;
-  z-index: 10;
+  width: 100%;
+  height: 100%;
+  z-index: 9999; /* Por encima de todo */
+  background-color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* El video en sí */
+.video-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain; /* Asegura que se vea entero sin recortes */
+  pointer-events: none; /* TRUCO: Evita que al tocar salgan los controles */
+}
+
+/* Ocultar controles nativos (capa de seguridad extra) */
+.video-container video::-webkit-media-controls {
+  display: none !important;
+}
+.video-container video::-webkit-media-controls-enclosure {
+  display: none !important;
 }
 .countdown-display {
   display: flex;

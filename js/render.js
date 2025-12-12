@@ -270,21 +270,32 @@ const Render = {
     return group;
   },
 
+  // js/render.js
+
   _createVideoPlayer(data) {
     const videoContainer = document.createElement("div");
-    videoContainer.className = "video-container";
+    videoContainer.className = "video-container"; // Esto activa el CSS Fullscreen
+
     const video = document.createElement("video");
     video.src = data.video;
-    video.playsInline = true;
+
+    // Configuración crítica
+    video.playsInline = true; // Vital para iOS
     video.preload = "auto";
     video.autoplay = true;
-    video.controls = false;
+    video.controls = false; // Sin controles explícitos
+
+    // Bloquear menú contextual (clic derecho)
+    video.oncontextmenu = () => false;
+
     video.addEventListener("ended", () => {
       this._callbacks.onNavigate(data.onNavigate);
     });
+
     video.addEventListener("play", () => {
       this._callbacks.onAudioUnlocked();
     });
+
     videoContainer.appendChild(video);
     return videoContainer;
   },
