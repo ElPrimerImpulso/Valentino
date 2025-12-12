@@ -1,95 +1,56 @@
-// Usar los nombres de archivo correctos
 import config from "./config.js";
 
 /**
- * router.js: El Navegante
+ * router.js: El Navegante (Versión Robusta con Promesas)
  */
+
+// Variable para desbloquear la promesa de inicialización
+let _resolveInit;
+const _initPromise = new Promise((resolve) => {
+  _resolveInit = resolve;
+});
+
 const Router = {
   _onNavigate: null,
 
-  /**
-   * --- FUNCIÓN MODIFICADA ---
-   * Arregla la "race condition" de la carga inicial.
-   */
   init(onNavigateCallback) {
-    console.log("[Router.js] 1. Inicializando y añadiendo listeners...");
+    console.log("[Router] Inicializando...");
     this._onNavigate = onNavigateCallback;
 
-    // 1. Añadir listeners INMEDIATAMENTE
+    // 1. Desbloqueamos la promesa: Ya tenemos callback
+    _resolveInit();
+
+    // 2. Listeners
     window.addEventListener("hashchange", () => this._handleHashChange());
     window.addEventListener("load", () => this._handleHashChange());
 
-    // 2. --- CORRECCIÓN DE RACE CONDITION ---
-    // Comprobar si el evento 'load' YA ocurrió
-    // (lo cual es casi seguro, porque app.js tiene 'await's)
+    // Si ya cargó, forzamos chequeo (por si acaso)
     if (document.readyState === "complete") {
-      console.log(
-        "[Router.js] 2. 'load' event ya ocurrió. Disparando manualmente _handleHashChange()."
-      );
-      // Si ya cargó, disparar el handler manualmente
-      // para que se cargue la sección inicial (#intro)
       this._handleHashChange();
-    } else {
-      console.log(
-        "[Router.js] 2. 'load' event aún no ha ocurrido. Esperando..."
-      );
     }
   },
 
-  /**
-   * Manejador central de cambios de ruta.
-   * Lee el hash, lo valida y llama al callback.
-   */
-  _handleHashChange() {
-    console.log("[Router.js] 3. ¡Hash changed! (o 'load' ocurrió)");
-
-    // Si _onNavigate aún no está listo (app.js no ha terminado), esperar
-    if (!this._onNavigate) {
-      console.warn(
-        "[Router.js] _handleHashChange se disparó, pero _onNavigate es nulo. Reintentando..."
-      );
-      setTimeout(() => this._handleHashChange(), 100);
-      return;
-    }
+  async _handleHashChange() {
+    // 3. ESPERAMOS A QUE INIT HAYA TERMINADO (Bloqueo seguro)
+    await _initPromise;
 
     let sectionId = window.location.hash.substring(1);
-
-    if (!sectionId) {
-      sectionId = "intro";
-    }
+    if (!sectionId) sectionId = "intro";
 
     if (config.sections[sectionId]) {
-      console.log(`[Router.js] 4. Navegando a sección: ${sectionId}`);
-      this._onNavigate(sectionId); // Llama a App.showSection
+      console.log(`[Router] Navegando a: ${sectionId}`);
+      this._onNavigate(sectionId);
     } else {
-      // Si el hash es inválido (ej. #acertijo99), redirigir
-      console.warn(
-        `[Router.js] Guardia: La sección "${sectionId}" no existe. Redirigiendo a #intro.`
-      );
+      console.warn(`[Router] Sección desconocida: ${sectionId}. Redirigiendo.`);
       this.navigate("intro", true);
     }
   },
 
-  /**
-   * Navega programáticamente a una nueva sección.
-   * @param {string} sectionId - El ID de la sección (ej. "decision")
-   * @param {boolean} [replace=false] - Si es true, reemplaza la entrada
-   */
   navigate(sectionId, replace = false) {
-    console.log(`[Router.js] navigate() llamado para: ${sectionId}`);
-
-    // Prevenir navegación nula si se llama antes de tiempo
-    if (sectionId === window.location.hash.substring(1)) {
-      return;
-    }
-
-    if (replace) {
-      window.location.replace(`#${sectionId}`);
-    } else {
-      window.location.hash = sectionId;
-    }
+    if (sectionId === window.location.hash.substring(1)) return;
+    if (replace) window.location.replace(`#${sectionId}`);
+    else window.location.hash = sectionId;
   },
 };
 
-// Exportamos el objeto del Router
 export default Router;

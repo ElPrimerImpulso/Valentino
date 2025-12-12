@@ -1,10 +1,10 @@
-// Usar los nombres de archivo correctos
 import config from "./config.js";
 import Validation from "./validation.js";
 import Countdown from "./countdown.js";
 
 /**
  * render.js: El Constructor de Vistas
+ * (Versión Final: Incluye Overlay para recuperar audio al recargar)
  */
 const Render = {
   _callbacks: {},
@@ -20,24 +20,29 @@ const Render = {
     const data = config.sections[sectionId];
     if (!data) return;
     this._rootElement.innerHTML = "";
+
+    // Si es Intro, usamos el layout especial
     if (data.type === "intro") {
       this._renderIntroLayout(data);
       return;
     }
+
+    // Renderizado estándar
     if (data.title) {
       this._rootElement.appendChild(this._createTitle(data.title));
     }
     if (data.narrative) {
       this._rootElement.appendChild(this._createNarrative(data.narrative));
     }
+
     const controlesContainer = document.createElement("div");
     controlesContainer.className = "controles";
+
     switch (data.type) {
       case "decision":
         controlesContainer.appendChild(this._createDecisionControls(data));
         break;
       case "explanation":
-        // --- CAMBIO AQUÍ: Pasar sectionId ---
         controlesContainer.appendChild(
           this._createExplanationControls(data, sectionId)
         );
@@ -53,18 +58,72 @@ const Render = {
         break;
     }
     this._rootElement.appendChild(controlesContainer);
+
     if (data.type === "countdown") {
-      console.log(
-        "[Render.js] HTML de Countdown añadido al DOM. Iniciando Countdown.start()."
-      );
       Countdown.start(config.global.countdownDate);
     }
   },
 
+  /**
+   * NUEVA FUNCIÓN: Muestra un botón gigante para recuperar el audio
+   * si el usuario recarga la página a mitad de camino.
+   */
+  showResumeOverlay(onResumeCallback) {
+    console.log("[Render.js] Mostrando Overlay de Reanudación de Audio...");
+
+    const overlay = document.createElement("div");
+    overlay.id = "resume-audio-overlay";
+    // Estilos inline para asegurar que tape todo y se vea bien
+    overlay.style.position = "fixed";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    overlay.style.width = "100%";
+    overlay.style.height = "100%";
+    overlay.style.backgroundColor = "rgba(0,0,0,0.95)";
+    overlay.style.zIndex = "9999";
+    overlay.style.display = "flex";
+    overlay.style.flexDirection = "column";
+    overlay.style.alignItems = "center";
+    overlay.style.justifyContent = "center";
+    overlay.style.color = "white";
+    overlay.style.textAlign = "center";
+
+    const msg = document.createElement("h2");
+    msg.textContent = "Pausado";
+    msg.style.marginBottom = "2rem";
+    msg.style.fontFamily = "'Inter', sans-serif";
+
+    const btn = document.createElement("button");
+    btn.textContent = "Continuar Experiencia";
+    // Reutilizamos estilos de tus botones
+    btn.className = "play-center";
+    btn.style.width = "auto";
+    btn.style.padding = "1rem 2rem";
+    btn.style.fontSize = "1.2rem";
+    btn.style.borderRadius = "50px";
+    btn.style.border = "2px solid white";
+    btn.style.background = "transparent";
+    btn.style.color = "white";
+    btn.style.cursor = "pointer";
+
+    btn.addEventListener("click", () => {
+      // Efecto visual de salida
+      overlay.style.opacity = "0";
+      overlay.style.transition = "opacity 0.5s";
+      setTimeout(() => overlay.remove(), 500);
+
+      // Ejecutar callback para prender audio
+      onResumeCallback();
+    });
+
+    overlay.appendChild(msg);
+    overlay.appendChild(btn);
+    document.body.appendChild(overlay);
+  },
+
+  // --- RESTO DE FUNCIONES (Iguales que antes) ---
+
   _renderIntroLayout(data) {
-    console.log(
-      "[Render.js] Creando layout de 'intro' (con barra de progreso)."
-    );
     const titleEl = this._createTitle(data.title);
     const narrativeEl = this._createNarrative(data.narrative);
     titleEl.classList.add("hidden-content");
@@ -95,35 +154,25 @@ const Render = {
     return narrativeEl;
   },
 
-  /**
-   * --- FUNCIÓN MODIFICADA ---
-   * Crea el centro de "Play" con la nueva barra de progreso.
-   */
   _createIntroPlayCenter(data) {
     const playCenter = document.createElement("div");
-    playCenter.className = "play-center is-loading"; // Sigue cargando por defecto
+    playCenter.className = "play-center is-loading";
     playCenter.id = "play-center-control";
-    console.log(
-      "[Render.js] Creado '#play-center-control' con clase '.is-loading'."
-    );
 
-    // 1. Botón "Play" (oculto por .is-loading)
     const playButton = document.createElement("button");
     playButton.innerHTML = "<pre>▶</pre>";
     playButton.addEventListener("click", () => {
       this._callbacks.onIntroPlay();
+      this.showContent();
+      this.hidePlayButton();
     });
 
-    // 2. Aviso de volumen (oculto por .is-loading)
     const avisoVolumen = document.createElement("p");
     avisoVolumen.className = "aviso-volumen";
     avisoVolumen.textContent = "🔊 Sube el volumen antes de empezar";
 
-    // 3. Indicador de Carga (CON BARRA DE PROGRESO)
     const loadingIndicator = document.createElement("div");
     loadingIndicator.className = "loading-indicator";
-
-    // Añadimos la barra y el texto de porcentaje
     loadingIndicator.innerHTML = `
       <div class="progress-bar-container">
         <div class="progress-bar-fill" id="progress-bar-fill"></div>
@@ -131,7 +180,6 @@ const Render = {
       <div class="progress-percentage" id="progress-percentage">0%</div>
     `;
 
-    // Añadimos todos al contenedor
     playCenter.appendChild(loadingIndicator);
     playCenter.appendChild(playButton);
     playCenter.appendChild(avisoVolumen);
@@ -167,7 +215,6 @@ const Render = {
     return acciones;
   },
 
-  // --- CAMBIO AQUÍ: Acepta sectionId ---
   _createExplanationControls(data, sectionId) {
     const acciones = document.createElement("div");
     acciones.className = "acciones";
@@ -175,10 +222,9 @@ const Render = {
       const button = document.createElement("button");
       button.textContent = data.buttonText;
 
-      // --- CAMBIO AQUÍ: Lógica especial para el botón de Pausa ---
       if (sectionId === "pausa" && data.onNavigate === "final") {
         button.addEventListener("click", () => {
-          this._callbacks.onPausaNext(data.onNavigate); // Llama al nuevo handler
+          this._callbacks.onPausaNext(data.onNavigate);
         });
       } else {
         button.addEventListener("click", () => {
@@ -187,10 +233,9 @@ const Render = {
       }
       acciones.appendChild(button);
 
-      // --- CAMBIO AQUÍ: Ocultar el botón de Pausa por defecto ---
       if (sectionId === "pausa") {
-        acciones.classList.add("hidden-content"); // Oculto por defecto
-        acciones.id = "pausa-acciones"; // ID para encontrarlo
+        acciones.classList.add("hidden-content");
+        acciones.id = "pausa-acciones";
       }
     }
     return acciones;
@@ -230,124 +275,88 @@ const Render = {
     videoContainer.className = "video-container";
     const video = document.createElement("video");
     video.src = data.video;
-    video.playsInline = true; // --- CAMBIO: Asegurar playsinline ---
+    video.playsInline = true;
     video.preload = "auto";
-    video.autoplay = true; // --- CAMBIO: Mantener autoplay para el intento ---
-    video.controls = false; // --- CAMBIO: Forzar sin controles ---
+    video.autoplay = true;
+    video.controls = false;
     video.addEventListener("ended", () => {
       this._callbacks.onNavigate(data.onNavigate);
     });
     video.addEventListener("play", () => {
       this._callbacks.onAudioUnlocked();
     });
-
-    // --- CAMBIO: Intentar play() aquí es muy pronto, app.js lo manejará ---
-    // video.play().catch((error) => {
-    //   console.warn("Autoplay de video bloqueado. Mostrando controles.", error);
-    //   video.controls = true; // Esto es lo que queremos evitar
-    // });
-
     videoContainer.appendChild(video);
     return videoContainer;
   },
 
   _createCountdownControls(data) {
+    const container = document.createElement("div");
+    container.style.display = "flex";
+    container.style.flexDirection = "column";
+    container.style.alignItems = "center";
+    container.style.width = "100%";
+
     const display = document.createElement("div");
     display.className = "countdown-display";
     display.innerHTML = `
-      <div class="countdown-unit" id="unit-years">
-        <span id="countdown-years">--</span>
-        <label>años</label>
-      </div>
-      <div class="countdown-unit" id="unit-days">
-        <span id="countdown-days">--</span>
-        <label>días</label>
-      </div>
-      <div class="countdown-unit" id="unit-hours">
-        <span id="countdown-hours">--</span>
-        <label>horas</label>
-      </div>
-      <div class="countdown-unit" id="unit-minutes">
-        <span id="countdown-minutes">--</span>
-        <label>minutos</label>
-      </div>
-      <div class="countdown-unit" id="unit-seconds">
-        <span id="countdown-seconds">--</span>
-        <label>segundos</label>
-      </div>
+      <div class="countdown-unit" id="unit-years"><span id="countdown-years">--</span><label>años</label></div>
+      <div class="countdown-unit" id="unit-days"><span id="countdown-days">--</span><label>días</label></div>
+      <div class="countdown-unit" id="unit-hours"><span id="countdown-hours">--</span><label>horas</label></div>
+      <div class="countdown-unit" id="unit-minutes"><span id="countdown-minutes">--</span><label>minutos</label></div>
+      <div class="countdown-unit" id="unit-seconds"><span id="countdown-seconds">--</span><label>segundos</label></div>
     `;
-    return display;
+
+    const replayContainer = document.createElement("div");
+    replayContainer.className = "acciones";
+    replayContainer.style.marginTop = "3rem";
+    replayContainer.style.opacity = "0";
+    replayContainer.style.pointerEvents = "none";
+    replayContainer.style.transition = "opacity 1.5s ease";
+
+    const btn = document.createElement("button");
+    btn.textContent = "🎬 Ver video otra vez";
+    btn.style.opacity = "0.8";
+    btn.addEventListener("click", () => {
+      this._callbacks.onNavigate("final");
+    });
+    replayContainer.appendChild(btn);
+
+    setTimeout(() => {
+      if (replayContainer) {
+        replayContainer.style.opacity = "1";
+        replayContainer.style.pointerEvents = "auto";
+      }
+    }, 4000);
+
+    container.appendChild(display);
+    container.appendChild(replayContainer);
+    return container;
   },
 
-  /**
-   * --- FUNCIÓN MODIFICADA ---
-   * Habilita/deshabilita el estado de carga de la intro.
-   * (Añadidos logs)
-   */
   setIntroLoading(isLoading) {
-    console.log(
-      `[Render.js] setIntroLoading() llamado con: ${
-        isLoading ? "TRUE" : "FALSE"
-      }`
-    );
     const playCenter = document.getElementById("play-center-control");
     if (playCenter) {
-      console.log("[Render.js] ...elemento '#play-center-control' ENCONTRADO.");
-      if (isLoading) {
-        playCenter.classList.add("is-loading");
-        console.log("[Render.js] ...clase '.is-loading' AÑADIDA.");
-      } else {
-        playCenter.classList.remove("is-loading");
-        console.log("[Render.js] ...clase '.is-loading' QUITADA.");
-      }
-    } else {
-      console.warn(
-        "[Render.js] ...elemento '#play-center-control' NO encontrado."
-      );
+      if (isLoading) playCenter.classList.add("is-loading");
+      else playCenter.classList.remove("is-loading");
     }
   },
 
-  /**
-   * --- NUEVA FUNCIÓN ---
-   * Actualiza la barra de progreso y el porcentaje.
-   * @param {number} percentage - Un valor de 0.0 a 1.0
-   */
   updateLoadingProgress(percentage) {
     const fillEl = document.getElementById("progress-bar-fill");
     const textEl = document.getElementById("progress-percentage");
     if (!fillEl || !textEl) return;
-
     const percentNum = Math.floor(percentage * 100);
     fillEl.style.width = `${percentNum}%`;
     textEl.textContent = `${percentNum}%`;
-
-    if (percentage === 1) {
-      // Opcional: cambiar el texto cuando llega al 100%
-      textEl.textContent = "¡Listo!";
-    }
+    if (percentage === 1) textEl.textContent = "¡Listo!";
   },
 
-  // --- NUEVA FUNCIÓN ---
-  // Intenta forzar el video a pantalla completa
   forceVideoFullscreen() {
     const video = this._rootElement.querySelector("video");
     if (video) {
-      console.log("[Render.js] Intentando forzar fullscreen...");
-      if (video.requestFullscreen) {
-        video
-          .requestFullscreen()
-          .catch((err) =>
-            console.warn("[Render.js] requestFullscreen falló:", err.message)
-          );
-      } else if (video.webkitEnterFullscreen) {
-        // Para Safari en iOS
-        console.log("[Render.js] Usando webkitEnterFullscreen para iOS.");
-        video.webkitEnterFullscreen();
-      } else {
-        console.warn("[Render.js] Ningún método de fullscreen disponible.");
-      }
-    } else {
-      console.warn("[Render.js] forceVideoFullscreen: No se encontró video.");
+      if (video.requestFullscreen)
+        video.requestFullscreen().catch((err) => console.warn(err));
+      else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen();
     }
   },
 
@@ -362,9 +371,7 @@ const Render = {
 
   hidePlayButton() {
     const playButton = this._rootElement.querySelector(".play-center");
-    if (playButton) {
-      playButton.classList.add("hidden-content");
-    }
+    if (playButton) playButton.classList.add("hidden-content");
   },
 
   showActions() {

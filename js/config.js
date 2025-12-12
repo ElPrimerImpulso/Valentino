@@ -180,7 +180,7 @@ const config = {
       title: "",
       narrative:
         "Última oportunidad, Valentino.<br>Si la detenés ahora, la aventura termina aquí.<br>Lo que viene después... nunca lo sabrás.<br><br>¿De verdad querés que termine acá?",
-      background: "./assets/img/confirmacion2-bg.jpg",
+      background: "./assets/img/confirmacion2-bg.png",
       audio: "./assets/audio/confirmacion2.mp3",
       buttons: [
         { text: "Sí, estoy seguro", target: "final2" },
@@ -193,7 +193,7 @@ const config = {
       title: "Final",
       narrative:
         "La bola de nieve se quedó pequeña.<br><br>Cincuenta mil pesos son tuyos.<br><br>Un regalo real.<br>Algo concreto en tus manos.<br>Pero la montaña sigue ahí arriba, y la avalancha que pudo haber sido... solo existirá en tu imaginación.<br><br>La aventura terminó antes de empezar.",
-      background: "./assets/img/final2-bg.jpg",
+      background: "./assets/img/final2-bg.png",
       audio: "./assets/audio/final2.mp3",
       buttonText: null,
       onNavigate: null,

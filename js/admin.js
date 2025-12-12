@@ -1,94 +1,44 @@
 /**
- * admin.js: Lógica del Panel de Administración
- * (VERSIÓN SIN SEGURIDAD - ACCESO DIRECTO)
+ * admin.js: Controlador del Panel de Admin
+ * (Versión Final: Detecta el camino activo para no mezclar progresos)
  */
 
 import config from "./config.js";
 
-// --- Destructuring simplificado (SIN AUTH) ---
+// 1. OBTENER DEPENDENCIAS
 const {
   initializeApp,
+  getAuth,
+  signInAnonymously,
+  onAuthStateChanged,
   getFirestore,
+  doc,
+  setDoc,
+  deleteDoc,
   collection,
   onSnapshot,
   query,
   orderBy,
-  doc,
+  limit,
   getDocs,
-  deleteDoc,
-  setDoc,
+  firebaseConfig,
 } = window.firebaseAdminSDK;
 
+// Variables Globales
+let app, db, auth;
 const PROGRESS_DOC_ID = "valentino";
 
-// Mapa de Navegación Inversa (sin cambios)
-const pathMap = {
-  decision: "intro",
-  confirmacion1: "decision",
-  acertijo1: "decision",
-  confirmacion2: "confirmacion1",
-  explicacion1: "acertijo1",
-  acertijo2: "explicacion1",
-  explicacion2: "acertijo2",
-  acertijo3: "explicacion2",
-  explicacion3: "acertijo3",
-  final2: "confirmacion2",
-  pausa: "explicacion3",
-  final: "pausa",
-  countdown: "final",
-};
-
-// --- Variables de Auth eliminadas ---
-let app;
-let db;
-let currentUserId = PROGRESS_DOC_ID;
-
-// --- Referencias a elementos de login/logout eliminadas ---
+// Elementos DOM
 const visualPathEl = document.getElementById("visual-path");
 const detailsCardsEl = document.getElementById("details-cards");
 const attemptsListEl = document.getElementById("attempts-list");
-const deleteProgressBtn = document.getElementById("delete-progress-btn");
-const forcePausaUnlockBtn = document.getElementById("force-pausa-unlock-btn");
+const systemStatusEl = document.getElementById("system-status");
 
-let activeListeners = {};
-
-// --- FUNCIÓN signIn ELIMINADA ---
-
-// createStepElement (sin cambios)
-const createStepElement = (sectionId, currentSection, visitedPath) => {
-  const sectionData = config.sections[sectionId];
-  if (!sectionData) return null;
-  const step = sectionData.step;
-  const el = document.createElement("div");
-  el.className = "path-step";
-  if (sectionId === currentSection) {
-    el.classList.add("current");
-  }
-  if (visitedPath.has(sectionId)) {
-    el.classList.add("visited");
-  } else if (sectionId !== currentSection) {
-    el.classList.add("locked");
-  }
-  el.innerHTML = `
-    <strong>${sectionId}</strong>
-    <span>(Paso ${step})</span>
-  `;
-  return el;
-};
-
-// renderVisualPath (sin cambios)
-const renderVisualPath = (currentSection, maxStep, lastSection) => {
-  if (!visualPathEl) return;
-  visualPathEl.innerHTML = "";
-  const visitedPath = new Set();
-  let currentTrace = lastSection;
-  while (currentTrace) {
-    visitedPath.add(currentTrace);
-    currentTrace = pathMap[currentTrace];
-  }
-  visitedPath.add("intro");
-  const caminoRapido = ["confirmacion1", "confirmacion2", "final2"];
-  const caminoPaciente = [
+// Listas de Secciones por Rama (Para filtrar visualmente)
+const BRANCHES = {
+  common: ["intro", "decision"],
+  fast: ["confirmacion1", "confirmacion2", "final2"],
+  patient: [
     "acertijo1",
     "explicacion1",
     "acertijo2",
@@ -98,214 +48,261 @@ const renderVisualPath = (currentSection, maxStep, lastSection) => {
     "pausa",
     "final",
     "countdown",
-  ];
-  visualPathEl.appendChild(
-    createStepElement("intro", currentSection, visitedPath)
-  );
-  visualPathEl.appendChild(
-    createStepElement("decision", currentSection, visitedPath)
-  );
-  const branchRapido = document.createElement("div");
-  branchRapido.className = "path-branch";
-  branchRapido.innerHTML = `<h3 class="path-branch-title">Camino Rápido</h3>`;
-  caminoRapido.forEach((id) => {
-    branchRapido.appendChild(
-      createStepElement(id, currentSection, visitedPath)
-    );
-  });
-  visualPathEl.appendChild(branchRapido);
-  const branchPaciente = document.createElement("div");
-  branchPaciente.className = "path-branch";
-  branchPaciente.innerHTML = `<h3 class="path-branch-title">Camino Paciente</h3>`;
-  caminoPaciente.forEach((id) => {
-    branchPaciente.appendChild(
-      createStepElement(id, currentSection, visitedPath)
-    );
-  });
-  visualPathEl.appendChild(branchPaciente);
+  ],
 };
 
-// renderDetails (sin cambios)
-const renderDetails = (userData) => {
-  if (!detailsCardsEl) return;
-  const currentSection = userData.currentSection || "N/A";
-  const maxSection = userData.lastSection || "N/A";
-  const maxStep = userData.maxStep || 0;
-  let lastUpdated = "Nunca";
-  if (userData.lastUpdated) {
-    lastUpdated = new Date(userData.lastUpdated).toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
+// =======================================================
+// 1. UTILIDADES
+// =======================================================
+
+const createStepElement = (sectionId, currentSection, visitedPath) => {
+  const sectionData = config.sections[sectionId];
+  if (!sectionData) return document.createElement("div");
+
+  const el = document.createElement("div");
+  el.className = "path-step";
+
+  // Lógica de clases visuales
+  if (sectionId === currentSection) {
+    el.classList.add("current");
+  } else if (visitedPath.has(sectionId)) {
+    el.classList.add("visited");
+  } else {
+    el.classList.add("locked");
   }
+
+  el.innerHTML = `
+    <strong>${sectionData.title || sectionId.toUpperCase()}</strong>
+    <div class="path-timestamp">Paso ${sectionData.step}</div>
+  `;
+  return el;
+};
+
+// =======================================================
+// 2. RENDERIZADO (LÓGICA MEJORADA)
+// =======================================================
+
+const renderVisualPath = (currentSection, maxStep) => {
+  if (!visualPathEl) return;
+  visualPathEl.innerHTML = "";
+
+  // 1. DETECTAR RAMA ACTIVA
+  // Averiguamos en qué camino está el usuario basándonos en su sección actual
+  let activeBranch = "common"; // Por defecto
+  if (BRANCHES.fast.includes(currentSection)) activeBranch = "fast";
+  if (BRANCHES.patient.includes(currentSection)) activeBranch = "patient";
+
+  const visitedPath = new Set();
+
+  Object.keys(config.sections).forEach((k) => {
+    // Regla base: El paso debe ser menor o igual al máximo alcanzado
+    if (config.sections[k].step <= maxStep) {
+      // REGLA DE FILTRADO INTELIGENTE:
+      // Si el usuario está en el camino "Paciente", NO marcamos los pasos del "Rápido"
+      // y viceversa. Los pasos comunes ("intro", "decision") siempre se marcan.
+
+      const isCommon = BRANCHES.common.includes(k);
+      const isFast = BRANCHES.fast.includes(k);
+      const isPatient = BRANCHES.patient.includes(k);
+
+      if (activeBranch === "patient" && isFast) return; // Ignorar Rápido si estamos en Paciente
+      if (activeBranch === "fast" && isPatient) return; // Ignorar Paciente si estamos en Rápido
+
+      // Si pasamos el filtro, lo añadimos
+      visitedPath.add(k);
+    }
+  });
+
+  const addBranch = (title, ids) => {
+    const d = document.createElement("div");
+    d.className = "path-branch";
+    d.innerHTML = `<div class="path-branch-title">${title}</div>`;
+    ids.forEach((id) =>
+      d.appendChild(createStepElement(id, currentSection, visitedPath))
+    );
+    visualPathEl.appendChild(d);
+  };
+
+  // Definición de ramas visuales
+  addBranch("Inicio", BRANCHES.common);
+  addBranch("Rápido", BRANCHES.fast);
+  addBranch("Paciente", BRANCHES.patient);
+};
+
+const renderControls = (userData) => {
+  if (!detailsCardsEl) return;
+
+  const current = userData.currentSection || "---";
+  const max =
+    userData.maxStep !== undefined ? `Paso ${userData.maxStep}` : "---";
+
   detailsCardsEl.innerHTML = `
-    <div class="detail-card">
-      <p>📍 Sección Actual (En Vivo)</p>
-      <strong class="highlight">${currentSection}</strong>
+    <div class="detail-card"><p>Ubicación Actual</p><strong class="highlight">${current.toUpperCase()}</strong></div>
+    <div class="detail-card"><p>Progreso Máximo</p><strong>${max}</strong></div>
+    
+    <div class="admin-divider"></div>
+    
+    <div style="margin-top:1rem; display:grid; grid-template-columns: 1fr 1fr; gap:10px">
+        <button id="btn-unlock" class="admin-button-google" style="width:100%">🔓 Desbloquear Final</button>
+        <button id="btn-clear-history" class="admin-button-delete" style="border-color:var(--admin-warning); color:var(--admin-warning);">🧹 Limpiar Logs</button>
     </div>
-    <div class="detail-card">
-      <p>🏆 Sección Máxima Alcanzada</p>
-      <strong>${maxSection} (Paso ${maxStep})</strong>
-    </div>
-    <div class="detail-card">
-      <p>⏱️ Última Actividad</p>
-      <strong>${lastUpdated}</strong>
+    
+    <div style="margin-top:1rem;">
+        <button id="btn-reset" class="admin-button-delete" style="width:100%">💀 RESET TOTAL</button>
     </div>
   `;
+
+  document.getElementById("btn-unlock").onclick = handleUnlockPausa;
+  document.getElementById("btn-clear-history").onclick = handleClearHistory;
+  document.getElementById("btn-reset").onclick = handleHardReset;
 };
 
-// listenToProgress (sin cambios)
-const listenToProgress = () => {
-  const progressDocRef = doc(db, "progress", PROGRESS_DOC_ID);
-  const unsubscribe = onSnapshot(progressDocRef, (docSnap) => {
-    console.log("Admin: ¡Datos de progreso recibidos!");
-    if (!docSnap.exists()) {
-      visualPathEl.innerHTML =
-        "<p class='narrativa'>El documento 'valentino' aún no ha sido creado.</p>";
-      detailsCardsEl.innerHTML = "";
-      attemptsListEl.innerHTML = "<li>...</li>";
-      deleteProgressBtn.disabled = true;
-      forcePausaUnlockBtn.disabled = true;
-      return;
-    }
-    const userData = docSnap.data();
-    deleteProgressBtn.disabled = false;
-    forcePausaUnlockBtn.disabled = false;
-    renderVisualPath(
-      userData.currentSection,
-      userData.maxStep,
-      userData.lastSection
+// =======================================================
+// 3. HANDLERS
+// =======================================================
+
+const handleUnlockPausa = async () => {
+  const btn = document.getElementById("btn-unlock");
+  const originalText = btn.textContent;
+  btn.textContent = "Enviando...";
+  btn.disabled = true;
+
+  try {
+    await setDoc(
+      doc(db, "progress", PROGRESS_DOC_ID),
+      { pausaUnlocked: true },
+      { merge: true }
     );
-    renderDetails(userData);
-    listenToAttempts(PROGRESS_DOC_ID);
-  });
-  activeListeners["progress"] = unsubscribe;
+    alert("✅ Señal enviada. El usuario verá el botón de continuar.");
+  } catch (e) {
+    alert("Error: " + e.message);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 };
 
-// listenToAttempts (sin cambios)
-const listenToAttempts = (userId) => {
-  if (activeListeners[userId]) {
-    return;
+const handleClearHistory = async () => {
+  if (!confirm("¿Limpiar solo el historial de intentos?")) return;
+  try {
+    const attemptsRef = collection(db, "progress", PROGRESS_DOC_ID, "attempts");
+    const snapshot = await getDocs(attemptsRef);
+    const promises = snapshot.docs.map((d) => deleteDoc(d.ref));
+    await Promise.all(promises);
+    alert("✅ Logs limpiados.");
+  } catch (e) {
+    alert("Error: " + e.message);
   }
-  if (!attemptsListEl) return;
-  const attemptsQuery = query(
-    collection(db, "progress", userId, "attempts"),
-    orderBy("timestamp", "desc")
+};
+
+const handleHardReset = async () => {
+  if (
+    !confirm(
+      "⚠️ ¿RESET TOTAL?\nSe borrará todo el progreso y Valentino volverá al inicio."
+    )
+  )
+    return;
+
+  const btn = document.getElementById("btn-reset");
+  if (btn) {
+    btn.textContent = "Borrando...";
+    btn.disabled = true;
+  }
+
+  try {
+    try {
+      const attemptsRef = collection(
+        db,
+        "progress",
+        PROGRESS_DOC_ID,
+        "attempts"
+      );
+      const snapshot = await getDocs(attemptsRef);
+      await Promise.all(snapshot.docs.map((d) => deleteDoc(d.ref)));
+    } catch (e) {
+      console.warn("Error historial:", e);
+    }
+
+    await deleteDoc(doc(db, "progress", PROGRESS_DOC_ID));
+    alert("✅ Reinicio completado.");
+  } catch (e) {
+    alert("Error crítico: " + e.message);
+  } finally {
+    if (btn) {
+      btn.textContent = "💀 RESET TOTAL";
+      btn.disabled = false;
+    }
+  }
+};
+
+// =======================================================
+// 4. INICIALIZACIÓN
+// =======================================================
+
+const init = () => {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  auth = getAuth(app);
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      if (systemStatusEl) {
+        systemStatusEl.textContent = "Conectado";
+        systemStatusEl.className = "status-badge success";
+      }
+      startListening();
+    } else {
+      signInAnonymously(auth).catch((e) => {
+        if (systemStatusEl) {
+          systemStatusEl.textContent = "Error Auth";
+          systemStatusEl.className = "status-badge warning";
+        }
+        console.error("Auth Error:", e);
+      });
+    }
+  });
+};
+
+const startListening = () => {
+  onSnapshot(doc(db, "progress", PROGRESS_DOC_ID), (snap) => {
+    if (snap.exists()) {
+      const data = snap.data();
+      renderVisualPath(data.currentSection, data.maxStep);
+      renderControls(data);
+    } else {
+      renderVisualPath("intro", 0);
+      renderControls({ currentSection: "intro", maxStep: 0 });
+    }
+  });
+
+  const q = query(
+    collection(db, "progress", PROGRESS_DOC_ID, "attempts"),
+    orderBy("timestamp", "desc"),
+    limit(20)
   );
-  const unsubscribe = onSnapshot(attemptsQuery, (snapshot) => {
-    console.log(`Admin: ¡Nuevos intentos recibidos para ${userId}!`);
-    if (snapshot.empty) {
-      attemptsListEl.innerHTML = "<li>Aún no hay intentos.</li>";
+
+  onSnapshot(q, (snap) => {
+    if (!attemptsListEl) return;
+    attemptsListEl.innerHTML = "";
+    if (snap.empty) {
+      attemptsListEl.innerHTML =
+        "<li style='padding:1rem; color:#666;'>Sin actividad reciente</li>";
       return;
     }
-    attemptsListEl.innerHTML = "";
-    snapshot.forEach((doc) => {
-      const attempt = doc.data();
-      const time = new Date(attempt.timestamp).toLocaleString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      });
-      const item = document.createElement("li");
-      item.className = attempt.isCorrect
-        ? "attempt-correct"
-        : "attempt-incorrect";
-      item.innerHTML = `
-        <div>
-          <strong>${attempt.riddleId}:</strong> 
-          <span class="attempt-text">"${attempt.attempt}"</span> 
-        </div>
-        <span class="attempt-time">${time}</span>
-      `;
-      attemptsListEl.appendChild(item);
+    snap.forEach((d) => {
+      const v = d.data();
+      const li = document.createElement("li");
+      li.className = v.isCorrect ? "attempt-correct" : "attempt-incorrect";
+      const time = v.timestamp
+        ? new Date(v.timestamp).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "";
+      li.innerHTML = `<span>${v.riddleId}: <strong>${v.attempt}</strong></span><span style="opacity:0.5; font-size:0.8em">${time}</span>`;
+      attemptsListEl.appendChild(li);
     });
   });
-  activeListeners[userId] = unsubscribe;
 };
 
-// stopAllListeners (sin cambios)
-const stopAllListeners = () => {
-  console.log("Admin: Deteniendo todos los listeners de realtime.");
-  Object.values(activeListeners).forEach((unsubscribe) => unsubscribe());
-  activeListeners = {};
-};
-
-// handleDeleteProgress (sin cambios)
-const handleDeleteProgress = async () => {
-  const uid = PROGRESS_DOC_ID;
-  const confirmation = prompt(
-    `¡ADVERTENCIA!\n\nEstás a punto de borrar TODO el progreso del documento '${uid}'...\n\nEscribe "borrar" para confirmar.`
-  );
-  if (confirmation !== "borrar") {
-    alert("Reinicio cancelado.");
-    return;
-  }
-  console.log(`Admin: Borrando progreso para el documento ${uid}...`);
-  deleteProgressBtn.disabled = true;
-  deleteProgressBtn.textContent = "Borrando...";
-  try {
-    console.log("Admin: Borrando sub-colección 'attempts'...");
-    const attemptsRef = collection(db, "progress", uid, "attempts");
-    const attemptsSnapshot = await getDocs(attemptsRef);
-    const deletePromises = [];
-    attemptsSnapshot.forEach((doc) => {
-      deletePromises.push(deleteDoc(doc.ref));
-    });
-    await Promise.all(deletePromises);
-    console.log(`Admin: ${deletePromises.length} intentos borrados.`);
-    console.log("Admin: Borrando documento de progreso principal...");
-    const progressDocRef = doc(db, "progress", uid);
-    await deleteDoc(progressDocRef);
-    console.log("Admin: ¡PROGRESO BORRADO CON ÉXITO!");
-  } catch (error) {
-    console.error("Admin: Error al borrar el progreso:", error);
-    alert("Hubo un error al borrar el progreso: " + error.message);
-  } finally {
-    deleteProgressBtn.textContent = "Reiniciar Progreso del Usuario";
-  }
-};
-
-// handleForcePausaUnlock (sin cambios)
-const handleForcePausaUnlock = async () => {
-  const uid = PROGRESS_DOC_ID;
-  console.log(
-    `Admin: Forzando desbloqueo de 'pausa' para el documento ${uid}...`
-  );
-  forcePausaUnlockBtn.disabled = true;
-  forcePausaUnlockBtn.textContent = "Enviando...";
-  try {
-    const progressDocRef = doc(db, "progress", uid);
-    await setDoc(progressDocRef, { pausaUnlocked: true }, { merge: true });
-    console.log("Admin: ¡Desbloqueo enviado!");
-    alert("¡Desbloqueo forzado enviado al usuario!");
-    forcePausaUnlockBtn.textContent = "¡Desbloqueo Enviado!";
-  } catch (error) {
-    console.error("Admin: Error al forzar el desbloqueo:", error);
-    alert("Error al enviar el desbloqueo: " + error.message);
-    forcePausaUnlockBtn.disabled = false;
-    forcePausaUnlockBtn.textContent = "Forzar Desbloqueo de Pausa (Remoto)";
-  }
-};
-
-// --- initAdmin (Simplificado) ---
-const initAdmin = () => {
-  app = initializeApp(window.firebaseAdminSDK.firebaseConfig);
-  db = getFirestore(app);
-
-  // --- Se eliminaron los listeners de login/logout ---
-  deleteProgressBtn.addEventListener("click", handleDeleteProgress);
-  forcePausaUnlockBtn.addEventListener("click", handleForcePausaUnlock);
-
-  // --- Se eliminó onAuthStateChanged ---
-
-  // --- Cargar los datos directamente al iniciar ---
-  console.log("Admin: Acceso directo. Cargando datos de progreso...");
-  listenToProgress();
-};
-
-// Iniciar la app de admin
-initAdmin();
+init();

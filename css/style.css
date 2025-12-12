@@ -58,8 +58,7 @@ body {
 #app-root {
   position: relative;
   z-index: 20;
-  width: 100%;
-  max-width: 900px; /* Ancho máximo para la app principal */
+  width: 100%; /* Ancho máximo para la app principal */
   padding: 1rem;
   text-align: center;
   /* Centra verticalmente si es corto, permite scroll si es largo */
@@ -85,7 +84,7 @@ body.view-confirmacion1 {
   background-image: url("../assets/img/confirmacion1-bg.jpg");
 }
 body.view-confirmacion2 {
-  background-image: url("../assets/img/confirmacion2-bg.jpg");
+  background-image: url("../assets/img/confirmacion2-bg.png");
 }
 body.view-acertijo1 {
   background-image: url("../assets/img/acertijo1-bg.png");
@@ -116,7 +115,7 @@ body.view-countdown {
   background-color: #000;
 }
 body.view-final2 {
-  background-image: url("../assets/img/final2-bg.jpg");
+  background-image: url("../assets/img/fina2-bg.png");
 }
 
 /* ============================= */
@@ -396,344 +395,505 @@ body.view-final2 {
 .controles .acciones.hidden-content {
   display: none;
 }
-
 /* ================================================= */
-/* --- ESTILOS DEL PANEL ADMIN (NUEVO DISEÑO 3.0 - Prolijo) --- */
+/* PANEL ADMIN 4.0 - DISEÑO MODERNO Y MINIMALISTA */
 /* ================================================= */
 
-/* --- Variables de Color (Modo Oscuro) --- */
 :root {
-  --admin-bg: #121212;
-  --admin-card-bg: #1e1e1e;
-  --admin-border: #333;
-  --admin-text-primary: #eee;
-  --admin-text-secondary: #aaa;
-  --admin-accent-orange: #d54b11;
-  --admin-accent-green: #3fba84;
-  --admin-accent-red: #dc3545;
-  --admin-accent-blue: #4285f4;
+  --admin-bg: #0f0f0f;
+  --admin-card: #1a1a1a;
+  --admin-card-hover: #222;
+  --admin-surface: #141414;
+  --admin-border: #2a2a2a;
+  --admin-text: #e5e5e5;
+  --admin-text-dim: #999;
+  --admin-text-muted: #666;
+  --admin-primary: #6366f1;
+  --admin-success: #10b981;
+  --admin-warning: #f59e0b;
+  --admin-danger: #ef4444;
+  --admin-info: #3b82f6;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* --- Estilos Base del Admin (Tipografía) --- */
+/* ===== BASE STYLES ===== */
 body.admin-view {
-  background-color: var(--admin-bg) !important;
-  background-image: none !important;
-  color: var(--admin-text-primary);
-  /* --- CAMBIO: Aplicar la misma fuente de la app --- */
-  font-family: "Verlag-Light", sans-serif;
-}
-body.admin-view #app-root {
-  max-width: 1200px;
-  justify-content: flex-start;
-  padding-top: 2rem;
+  background: var(--admin-bg);
+  color: var(--admin-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter",
+    sans-serif;
+  overflow-y: scroll;
+  line-height: 1.6;
 }
 
-/* --- Encabezado y Login --- */
+body.admin-view * {
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+}
+
+body.admin-view ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+body.admin-view ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.admin-view ::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 3px;
+}
+
+body.admin-view ::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}
+
+body.admin-view #app-root {
+  max-width: 1440px;
+  padding: 2rem 1.5rem 4rem;
+  margin: 0 auto;
+}
+
+/* ===== HEADER ===== */
 .admin-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--admin-border);
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-bottom: 1rem;
 }
+
 .admin-header .titulo {
-  opacity: 1;
+  font-size: 2.5rem;
+  font-weight: 700;
   margin: 0;
-  font-family: "Verlag-Book", sans-serif; /* Fuente más gruesa para el título */
+  background: linear-gradient(135deg, #fff 0%, #999 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
 }
-.admin-usuario-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--admin-card-bg);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  color: var(--admin-text-secondary);
-  font-size: 0.9rem;
-  border: 1px solid var(--admin-border);
-}
-.admin-button-google {
-  background-color: var(--admin-accent-blue);
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+
+/* ===== BUTTONS ===== */
+button {
+  font-family: inherit;
   cursor: pointer;
-  font-family: "Verlag-Book", sans-serif;
+  border: none;
+  transition: var(--transition);
+  font-weight: 500;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+.admin-button-google {
+  background: var(--admin-info);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-button-google:hover {
+  background: #4f95f6;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* ===== LAYOUT ===== */
+.admin-main-container {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+/* ===== CARDS ===== */
+.admin-column,
+.admin-user-card {
+  background: var(--admin-card);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  border: 1px solid var(--admin-border);
+  box-shadow: var(--shadow-sm);
+}
+
+.admin-column-title {
   font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--admin-text);
+  margin: 0 0 2rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--admin-border);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  transition: background-color 0.2s ease;
-}
-.admin-button-google:hover {
-  background-color: #5a95f5;
-}
-.admin-button-google svg path {
-  fill: #fff;
-}
-.admin-button-logout {
-  background: #444;
-  color: white;
-  border: none;
-  padding: 0.4rem 0.8rem;
-  border-radius: 5px;
-  cursor: pointer;
-  font-family: "Verlag-Light";
-  font-size: 0.9rem;
-  transition: background-color 0.2s ease;
-}
-.admin-button-logout:hover {
-  background: var(--admin-accent-orange);
-}
-.admin-divider {
-  border: none;
-  border-top: 1px solid var(--admin-border);
-  margin: 1.5rem 0;
+  opacity: 0.9;
 }
 
-/* --- Contenedor Principal (Responsivo) --- */
-.admin-main-container {
-  display: grid;
-  grid-template-columns: 1fr 1fr; /* 2 Columnas */
-  gap: 2rem;
-}
-.admin-column {
-  background: var(--admin-card-bg);
-  border-radius: 8px;
-  padding: 1.5rem;
-  border: 1px solid var(--admin-border);
-  min-height: 200px;
-}
-#path-container {
-  flex: 1;
-}
-#details-container {
-  flex: 1;
-  max-width: 500px;
-}
-.admin-column-title {
-  font-size: 1.3rem;
-  font-family: "Verlag-Book", sans-serif; /* Fuente más gruesa */
-  color: var(--admin-text-primary);
-  margin-bottom: 1.5rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid var(--admin-border);
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* --- Mapa de Progreso Visual (Simplificado) --- */
+/* ===== PROGRESS PATH - REDISEÑADO ===== */
 .path-branch {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
+  position: relative;
 }
+
 .path-branch-title {
-  font-size: 1.1rem;
-  font-family: "Verlag-Book", sans-serif;
-  color: var(--admin-accent-orange);
-  margin-bottom: 1rem;
-  text-align: left;
-  padding-left: 0.5rem;
-  /* --- CAMBIO: MAYÚSCULAS --- */
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
   text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 1.5rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid var(--admin-border);
 }
 
 .path-step {
-  padding: 0.8rem 1.2rem;
-  background: #2a2a2a;
-  border-radius: 5px;
-  margin-bottom: 0.5rem;
-  border-left: 4px solid #444; /* Borde "locked" */
-  color: #777; /* Color "locked" */
-  text-align: left;
-  font-family: "Verlag-Book", sans-serif;
-  transition: all 0.3s ease;
-  /* --- CAMBIO: MAYÚSCULAS --- */
-  text-transform: uppercase;
+  position: relative;
+  padding: 1.25rem 1.5rem;
+  background: var(--admin-surface);
+  border-radius: var(--radius-md);
+  margin-bottom: 1rem;
+  border: 1px solid var(--admin-border);
+  transition: var(--transition);
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
-.path-step.visited {
-  border-left-color: var(--admin-accent-green);
-  color: #ccc;
-  background: #2a3a2a;
+
+.path-step:hover {
+  background: var(--admin-card-hover);
+  border-color: #333;
 }
-.path-step.current {
-  border-left-color: var(--admin-accent-orange);
-  color: #fff;
-  background: #4a3a2a;
-  transform: scale(1.02);
-  box-shadow: 0 0 15px rgba(213, 75, 17, 0.2);
+
+.path-step strong {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--admin-text-dim);
+  text-transform: none;
 }
+
 .path-step strong::before {
-  margin-right: 0.75rem;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
 }
+
+/* Estados del Path */
+.path-step.locked {
+  opacity: 0.5;
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.path-step.locked strong {
+  color: var(--admin-text-muted);
+}
+
 .path-step.locked strong::before {
   content: "🔒";
-}
-.path-step.visited strong::before {
-  content: "🟢";
-}
-.path-step.current strong::before {
-  content: "🟠";
-  animation: pulse-scale 1.5s infinite;
-}
-
-/* --- NUEVO: Estilo para la Marca de Tiempo --- */
-.path-timestamp {
-  font-size: 0.8rem;
-  opacity: 0.6;
-  margin-left: 0.5rem;
-  font-family: "Verlag-Light";
-  display: block; /* Ponerla en una nueva línea */
-  margin-left: 2.1rem; /* Alinearla con el texto */
-  text-transform: none; /* Las marcas de tiempo no van en mayúsculas */
-  color: var(--admin-text-secondary);
-}
-.path-step.locked .path-timestamp {
-  display: none; /* No mostrar "Visitado:" en un paso bloqueado */
-}
-/* Ocultar el (Paso X) que ya no necesitamos */
-.path-step > span:not(.path-timestamp) {
-  display: none;
-}
-
-/* --- Tarjetas de Detalles (Columna 2) --- */
-.admin-user-card {
-  background: #2a2a2a;
-  border-radius: 8px;
-  padding: 1.5rem;
-  text-align: left;
-}
-.detail-card {
-  margin-bottom: 1.5rem;
-}
-.detail-card p {
-  font-size: 1rem;
-  color: var(--admin-text-secondary);
-  text-transform: uppercase;
-  font-size: 0.8rem;
-  letter-spacing: 0.5px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: "Verlag-Book", sans-serif; /* Título de la tarjeta */
-}
-.detail-card strong {
-  font-size: 1.3rem;
-  color: var(--admin-text-primary);
-  font-family: "Verlag-Light", sans-serif; /* Contenido de la tarjeta */
-  display: block;
-  margin-top: 0.25rem;
-}
-.detail-card strong.highlight {
-  color: var(--admin-accent-orange);
-  font-family: "Verlag-Book", sans-serif; /* Resaltar la sección actual */
-}
-
-/* Lista de Intentos (Columna 2) */
-.admin-attempts-list {
-  list-style: none;
-  padding: 0;
-  max-height: 300px;
-  overflow-y: auto;
-  background: #191919;
-  border-radius: 5px;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--admin-border);
-}
-.admin-attempts-list li {
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--admin-border);
-  font-family: monospace;
-  font-size: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-.admin-attempts-list li:last-child {
-  border-bottom: none;
-}
-.admin-attempts-list li.attempt-correct {
-  color: var(--admin-accent-green);
-}
-.admin-attempts-list li.attempt-correct::before {
-  content: "✅";
-  margin-right: 0.5rem;
-}
-.admin-attempts-list li.attempt-incorrect {
-  color: var(--admin-accent-red);
-}
-.admin-attempts-list li.attempt-incorrect::before {
-  content: "❌";
-  margin-right: 0.5rem;
-}
-
-.admin-attempts-list li span.attempt-text {
-  font-style: italic;
-  color: var(--admin-text-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 150px;
-}
-.admin-attempts-list li span.attempt-time {
-  font-size: 0.8rem;
-  color: #777;
-  white-space: nowrap;
-}
-
-/* Zona Peligrosa */
-.admin-danger-zone {
-  margin-top: 2rem;
-  border-top: 2px solid #555;
-  padding-top: 1.5rem;
-}
-.admin-button-delete {
-  background-color: var(--admin-accent-red);
-  color: white;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-family: "Verlag-Book", sans-serif;
-  font-size: 1.1rem;
-  width: 100%;
-  transition: background-color 0.2s ease;
-}
-.admin-button-delete:hover {
-  background-color: #c82333;
-}
-.admin-button-delete:disabled {
-  background-color: #555;
-  cursor: not-allowed;
   opacity: 0.5;
 }
 
-/* --- Media Query para Responsivo --- */
-@media (max-width: 900px) {
-  .admin-main-container {
-    grid-template-columns: 1fr; /* Apilar columnas en móvil/tablet */
+.path-step.visited {
+  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.path-step.visited strong {
+  color: var(--admin-text);
+}
+
+.path-step.visited strong::before {
+  content: "✓";
+  color: var(--admin-success);
+  font-weight: bold;
+}
+
+.path-step.current {
+  border-color: var(--admin-primary);
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.1) 0%,
+    rgba(99, 102, 241, 0.05) 100%
+  );
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.2),
+    0 4px 16px rgba(99, 102, 241, 0.15);
+  transform: translateX(4px);
+}
+
+.path-step.current strong {
+  color: var(--admin-text);
+  font-weight: 600;
+}
+
+.path-step.current strong::before {
+  content: "▶";
+  color: var(--admin-primary);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
-  #details-container {
-    max-width: none; /* Ancho completo en móvil */
+  50% {
+    opacity: 0.7;
+    transform: scale(1.2);
   }
 }
-@media (max-width: 768px) {
+
+.path-timestamp {
+  font-size: 0.75rem;
+  color: var(--admin-text-muted);
+  font-family: "SF Mono", "Consolas", monospace;
+  margin-left: 2.5rem;
+  opacity: 0.8;
+}
+
+/* ===== DETAIL CARDS ===== */
+.detail-card {
+  background: var(--admin-surface);
+  padding: 1.25rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--admin-border);
+  transition: var(--transition);
+}
+
+.detail-card:hover {
+  border-color: #333;
+}
+
+.detail-card p {
+  font-size: 0.75rem;
+  color: var(--admin-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 0 0 0.5rem 0;
+  font-weight: 500;
+}
+
+.detail-card strong {
+  font-size: 1.25rem;
+  color: var(--admin-text);
+  font-family: "SF Mono", "Consolas", monospace;
+  font-weight: 600;
+  display: block;
+}
+
+.detail-card strong.highlight {
+  color: var(--admin-primary);
+  font-size: 1.5rem;
+}
+
+/* ===== FORM ELEMENTS ===== */
+#teleport-select {
+  width: 100%;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  border: 1px solid var(--admin-border);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+#teleport-select:hover {
+  border-color: #444;
+}
+
+#teleport-select:focus {
+  outline: none;
+  border-color: var(--admin-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+/* ===== ATTEMPTS LIST ===== */
+.admin-attempts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--admin-surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--admin-border);
+}
+
+.admin-attempts-list li {
+  padding: 1rem;
+  border-bottom: 1px solid var(--admin-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  font-family: "SF Mono", "Consolas", monospace;
+  transition: var(--transition);
+}
+
+.admin-attempts-list li:last-child {
+  border-bottom: none;
+}
+
+.admin-attempts-list li:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-attempts-list li.attempt-correct {
+  color: var(--admin-success);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.admin-attempts-list li.attempt-incorrect {
+  color: var(--admin-danger);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+/* ===== DANGER ZONE ===== */
+.admin-divider {
+  margin: 2rem 0;
+  border: none;
+  height: 1px;
+  background: var(--admin-border);
+}
+
+.admin-button-delete {
+  width: 100%;
+  background: transparent;
+  color: var(--admin-danger);
+  border: 1px solid var(--admin-danger);
+  padding: 0.875rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: var(--transition);
+}
+
+.admin-button-delete:hover {
+  background: var(--admin-danger);
+  color: white;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+/* ===== BADGES & STATUS ===== */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--admin-success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.status-badge.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--admin-warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.status-badge.info {
+  background: rgba(99, 102, 241, 0.15);
+  color: var(--admin-primary);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1024px) {
+  .admin-main-container {
+    grid-template-columns: 1fr;
+  }
+
+  body.admin-view #app-root {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .admin-header .titulo {
+    font-size: 2rem;
+  }
+}
+
+@media (max-width: 640px) {
   .admin-header {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-start;
     gap: 1rem;
   }
-  .admin-usuario-info {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
+
+  .admin-column,
+  .admin-user-card {
+    padding: 1.5rem;
   }
-  .admin-button-logout {
-    text-align: center;
+
+  .path-step {
+    padding: 1rem;
+  }
+
+  .path-step.current {
+    transform: none;
+  }
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-column,
+.admin-user-card {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* ===== ACCESSIBILITY ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
