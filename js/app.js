@@ -8,7 +8,7 @@ import FirebaseManager from "./firebase-manager.js";
 
 /**
  * app.js: El Orquestador
- * (Versión Final: El aviso de 'Audio Pausado' se omite en el Countdown)
+ * (Versión Final: Incluye forzado de transparencia para revelar fondos)
  */
 const App = {
   _isAudioStarted: false,
@@ -85,6 +85,28 @@ const App = {
     this._currentSection = sectionId;
     document.body.className = `view-${sectionId}`;
 
+    // --- CORRECCIÓN CRÍTICA DE FONDOS ---
+    // 1. Aplicamos el fondo al body
+    if (sectionData.background) {
+      document.body.style.backgroundImage = `url('${sectionData.background}')`;
+      document.body.style.backgroundSize = "cover";
+      document.body.style.backgroundPosition = "center center";
+      document.body.style.backgroundRepeat = "no-repeat";
+      document.body.style.backgroundAttachment = "fixed";
+    } else {
+      document.body.style.backgroundImage = "none";
+      document.body.style.backgroundColor = "#000"; // Fondo negro por defecto si no hay imagen
+    }
+
+    // 2. IMPORTANTE: Forzamos transparencia en el contenedor raíz
+    // Esto evita que el div principal tape la imagen del body
+    const appRoot = document.getElementById("app-root");
+    if (appRoot) {
+      appRoot.style.backgroundColor = "transparent";
+      appRoot.style.backgroundImage = "none";
+    }
+    // -------------------------------------
+
     if (this._isFirebaseConnected)
       FirebaseManager.updateCurrentLocation(sectionId);
 
@@ -101,11 +123,10 @@ const App = {
     AudioManager.stopNarration();
     if (sectionId !== "countdown") Countdown.stop();
 
-    // 1. RENDERIZAR VISUALMENTE
+    // Renderizar
     Render.section(sectionId);
 
-    // 2. VERIFICAR PERMISO DE AUDIO
-    // MODIFICADO: Agregamos '&& sectionId !== "countdown"' para no molestar ahí.
+    // Verificar Audio
     if (
       !this._isAudioStarted &&
       sectionId !== "intro" &&
@@ -114,14 +135,12 @@ const App = {
       console.warn(
         "[App.js] Audio bloqueado por recarga. Solicitando interacción..."
       );
-
       Render.showResumeOverlay(() => {
         console.log("[App.js] Audio reactivado por usuario.");
         this._isAudioStarted = true;
         this._executeAudioLogic(sectionId, sectionData);
       });
     } else {
-      // Flujo directo (Intentará reproducir audio aunque falle si no hubo interacción previa)
       this._executeAudioLogic(sectionId, sectionData);
     }
 
@@ -144,7 +163,6 @@ const App = {
   },
 
   _executeAudioLogic(sectionId, sectionData) {
-    // 1. Música de Fondo (BGM)
     let bgmType = "main";
     if (sectionId === "countdown") bgmType = "final";
     else if (sectionId === "final") bgmType = "none";
@@ -156,16 +174,13 @@ const App = {
       else AudioManager.stopAllBGM();
       this._activeBGMType = bgmType;
     } else if (sectionId === "countdown") {
-      // Intento forzado para countdown si recargamos ahí (puede fallar sin interacción)
       AudioManager.playBGMFinal();
     }
 
-    // 2. Referencias Video
     if (sectionId === "final") {
       this._videoElementForPausa = document.querySelector("video");
     }
 
-    // 3. Narración
     if (sectionData.audio && this._isAudioStarted) {
       setTimeout(() => AudioManager.playNarration(sectionData.audio), 500);
     }
@@ -184,7 +199,10 @@ const App = {
     const overlay = document.getElementById("fade-overlay");
     if (overlay) {
       overlay.style.opacity = "0";
-      setTimeout(() => (overlay.style.pointerEvents = "none"), 500);
+      setTimeout(() => {
+        // Doble seguridad para que el overlay no bloquee clicks ni visión
+        overlay.style.pointerEvents = "none";
+      }, 500);
     }
     return Promise.resolve();
   },
