@@ -1,6 +1,6 @@
 /**
  * firebase-manager.js: Gestor de Base de Datos
- * (Versión: DOCUMENTO ÚNICO "valentino")
+ * (Versión BLINDADA: Verifica la nube antes de sobrescribir)
  */
 
 const {
@@ -18,17 +18,17 @@ const {
   firebaseConfig,
 } = window.firebaseSDK;
 
-// --- CLAVE: Este es el ID ÚNICO para todos los dispositivos ---
+// --- ID MAESTRO: SIEMPRE 'valentino' ---
 const PROGRESS_DOC_ID = "valentino";
-// -------------------------------------------------------------
 
 let app;
 let auth;
 let db;
-let currentMaxStep = 0;
+let currentUserId = null;
+let currentMaxStep = 0; // Referencia local, pero NO es la autoridad final
 
 const init = () => {
-  console.log("[Firebase] Inicializando...");
+  console.log("[Firebase] Inicializando Manager...");
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
@@ -36,26 +36,47 @@ const init = () => {
   return new Promise((resolve, reject) => {
     onAuthStateChanged(auth, (user) => {
       if (user) {
-        console.log("Usuario conectado (ID técnico):", user.uid);
-        // Aunque tenga un ID técnico único, usaremos 'valentino' para los datos
+        // Ignoramos el user.uid real y usamos siempre el ID maestro
+        currentUserId = user.uid;
+        console.log(
+          `[Firebase] Conectado. Usando ID Maestro: "${PROGRESS_DOC_ID}"`
+        );
         resolve();
       } else {
         signInAnonymously(auth)
-          .then(() => resolve())
-          .catch((error) => {
-            console.error("Error Auth:", error);
-            reject(error);
-          });
+          .then((cred) => {
+            currentUserId = cred.user.uid;
+            resolve();
+          })
+          .catch(reject);
       }
     });
   });
 };
 
-/**
- * Cargar progreso siempre del documento 'valentino'
- */
+const subscribeToProgress = (callback) => {
+  if (!db) return;
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
+
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      // Si la nube tiene un paso mayor, actualizamos nuestra variable local
+      if (data.maxStep !== undefined && data.maxStep > currentMaxStep) {
+        currentMaxStep = data.maxStep;
+      }
+      callback(data);
+    } else {
+      // Detección de Hard Reset (Borrado desde Admin)
+      console.warn("[Firebase] Reset remoto detectado.");
+      localStorage.removeItem("navidad_progress");
+      window.location.reload();
+    }
+  });
+};
+
 const loadProgress = async () => {
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
   try {
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
@@ -63,8 +84,7 @@ const loadProgress = async () => {
       currentMaxStep = data.maxStep || 0;
       return data;
     }
-    // Si no existe, creamos el perfil inicial
-    return { maxStep: 0, lastSection: "intro", pausaUnlocked: false };
+    return { maxStep: 0, lastSection: "intro" };
   } catch (error) {
     console.error("[Firebase] Error carga:", error);
     return { maxStep: 0, lastSection: "intro" };
@@ -72,36 +92,58 @@ const loadProgress = async () => {
 };
 
 /**
- * Guardar progreso en 'valentino'
+ * --- CORRECCIÓN CRÍTICA: GUARDADO SEGURO ---
+ * Ya no confiamos en la variable local.
+ * Leemos la nube ANTES de escribir.
  */
 const saveProgress = async (newStep, sectionId) => {
-  // Protección local: no bajar de nivel
-  if (newStep <= currentMaxStep) return;
-  currentMaxStep = newStep;
+  if (!currentUserId) return;
 
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
+  // Referencia al documento 'valentino'
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
 
   try {
-    await setDoc(
-      docRef,
-      {
-        maxStep: newStep,
-        lastSection: sectionId,
-        lastUpdated: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    // 1. CONSULTAR LA VERDAD EN LA NUBE
+    // (Esto evita que una recarga con variable en 0 sobrescriba el progreso real)
+    const cloudSnap = await getDoc(docRef);
+    let cloudMaxStep = 0;
+
+    if (cloudSnap.exists()) {
+      cloudMaxStep = cloudSnap.data().maxStep || 0;
+    }
+
+    // 2. COMPARAR
+    // Solo guardamos si nuestro nuevo paso es MAYOR al de la nube.
+    if (newStep > cloudMaxStep) {
+      console.log(
+        `[Firebase] Guardando nuevo récord: ${cloudMaxStep} -> ${newStep}`
+      );
+      currentMaxStep = newStep; // Actualizamos local
+
+      await setDoc(
+        docRef,
+        {
+          maxStep: newStep,
+          lastSection: sectionId,
+          lastUpdated: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    } else {
+      console.log(
+        `[Firebase] 🛡️ Guardado bloqueado. Nube (${cloudMaxStep}) >= Nuevo (${newStep}). No se toca nada.`
+      );
+    }
   } catch (error) {
-    console.error("Error guardando progreso:", error);
+    console.error("[Firebase] Error saveProgress:", error);
   }
 };
 
-/**
- * Actualizar ubicación actual (para que el Admin lo vea)
- */
 const updateCurrentLocation = async (sectionId) => {
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
+  if (!currentUserId) return;
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
   try {
+    // Solo actualizamos la ubicación ("dónde está mirando"), SIN tocar maxStep
     await setDoc(
       docRef,
       {
@@ -111,16 +153,13 @@ const updateCurrentLocation = async (sectionId) => {
       { merge: true }
     );
   } catch (error) {
-    console.error("Error ubicación:", error);
+    console.error(error);
   }
 };
 
-/**
- * Guardar intentos de acertijos en la subcolección de 'valentino'
- */
 const saveRiddleAttempt = async (riddleId, attempt, isCorrect) => {
+  if (!currentUserId) return;
   try {
-    // Guardamos en: progress/valentino/attempts
     const colRef = collection(db, "progress", PROGRESS_DOC_ID, "attempts");
     await addDoc(colRef, {
       riddleId,
@@ -129,32 +168,14 @@ const saveRiddleAttempt = async (riddleId, attempt, isCorrect) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error("Error guardando intento:", error);
+    console.error(error);
   }
-};
-
-/**
- * Escuchar cambios en 'valentino' (Teletransporte)
- */
-const subscribeToProgress = (callback) => {
-  if (!db) return;
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
-
-  return onSnapshot(docRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      if (data.maxStep !== undefined) {
-        currentMaxStep = data.maxStep;
-      }
-      callback(data);
-    }
-  });
 };
 
 export default {
   init,
   loadProgress,
-  saveProgress,
+  saveProgress, // <-- Ahora incluye la protección remota
   updateCurrentLocation,
   saveRiddleAttempt,
   subscribeToProgress,

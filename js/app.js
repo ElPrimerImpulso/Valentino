@@ -8,7 +8,7 @@ import FirebaseManager from "./firebase-manager.js";
 
 /**
  * app.js: El Orquestador
- * (Versión Final: Incluye forzado de transparencia para revelar fondos)
+ * (Versión MAESTRA: Sincronización + Fondos JS + Audio Instantáneo)
  */
 const App = {
   _isAudioStarted: false,
@@ -21,7 +21,7 @@ const App = {
   _isRemoteUnlockEnabled: false,
 
   async init() {
-    console.log("[App.js] 1. Proyecto Navidad: Iniciando...");
+    console.log("[App.js] Iniciando sistema...");
     AudioManager.init({ onNarrationEnd: this._handleNarrationEnd.bind(this) });
 
     Render.init(document.getElementById("app-root"), {
@@ -32,35 +32,100 @@ const App = {
       onPausaNext: this._handlePausaNext.bind(this),
     });
 
+    // 1. CARGAR PROGRESO LOCAL (LocalStorage)
+    // Esto asegura que si recarga sin internet, no pierda su lugar.
+    const localData = JSON.parse(localStorage.getItem("navidad_progress"));
+    let startStep = 0;
+    let startSection = "intro";
+
+    if (localData) {
+      console.log("[App.js] Progreso local detectado:", localData);
+      startStep = localData.maxStep || 0;
+      if (config.stepToSectionMap[startStep]) {
+        startSection = config.stepToSectionMap[startStep];
+      }
+    }
+
+    // 2. CONECTAR Y SINCRONIZAR CON LA NUBE (Firebase)
     try {
       await FirebaseManager.init();
       this._isFirebaseConnected = true;
-      console.log("[App.js] 2. Firebase conectado.");
-      const progress = await FirebaseManager.loadProgress();
-      if (progress && progress.maxStep !== undefined) {
-        this._userMaxStep = progress.maxStep;
-        if (progress.pausaUnlocked) this._isRemoteUnlockEnabled = true;
+      console.log("[App.js] Conectado a Firebase.");
+
+      // Leemos la nube para ver si hay un progreso más avanzado (ej: jugó en PC)
+      const cloudData = await FirebaseManager.loadProgress();
+      const cloudStep = cloudData.maxStep || 0;
+
+      // --- LÓGICA DE FUSIÓN (Sincronización) ---
+      if (cloudStep > startStep) {
+        console.log(
+          `[App.js] Nube gana (${cloudStep} > ${startStep}). Sincronizando...`
+        );
+        this._userMaxStep = cloudStep;
+        startSection =
+          cloudData.lastSection ||
+          config.stepToSectionMap[cloudStep] ||
+          "intro";
+        // Guardamos en local para estar al día
+        localStorage.setItem(
+          "navidad_progress",
+          JSON.stringify({ maxStep: this._userMaxStep })
+        );
+      } else if (startStep > cloudStep) {
+        console.log(
+          `[App.js] Local gana (${startStep} > ${cloudStep}). Subiendo a nube...`
+        );
+        this._userMaxStep = startStep;
+        // Subimos el progreso local a la nube
+        FirebaseManager.saveProgress(this._userMaxStep, startSection);
+      } else {
+        console.log("[App.js] Sincronizados.");
+        this._userMaxStep = startStep;
       }
-      FirebaseManager.subscribeToProgress((data) => {
-        this._handleRemoteUpdate(data);
-      });
+
+      if (cloudData.pausaUnlocked) this._isRemoteUnlockEnabled = true;
+
+      // Reportar "Estoy aquí" inmediatamente (para que lo veas en Admin)
+      FirebaseManager.updateCurrentLocation(startSection);
+
+      // Activar escucha de "Teletransporte"
+      FirebaseManager.subscribeToProgress((data) =>
+        this._handleRemoteUpdate(data)
+      );
     } catch (error) {
-      console.warn("[App.js] Modo Offline:", error);
-      const local = JSON.parse(localStorage.getItem("navidad_progress"));
-      if (local) this._userMaxStep = local.maxStep || 0;
+      console.warn("[App.js] Modo Offline / Error:", error);
+      this._userMaxStep = startStep;
     }
 
+    // 3. INICIAR NAVEGACIÓN
     Router.init((sectionId) => this.showSection(sectionId));
+
+    // Manejo inteligente de la URL
+    if (!window.location.hash) {
+      Router.navigate(startSection);
+    } else {
+      const initialHash = window.location.hash.replace("#", "");
+      this.showSection(initialHash);
+    }
+
     this._preloadCriticalAssets();
   },
 
   _handleRemoteUpdate(data) {
-    if (data.maxStep !== undefined) this._userMaxStep = data.maxStep;
+    // Si la nube actualiza el paso máximo, lo tomamos
+    if (data.maxStep !== undefined && data.maxStep > this._userMaxStep) {
+      this._userMaxStep = data.maxStep;
+      localStorage.setItem(
+        "navidad_progress",
+        JSON.stringify({ maxStep: this._userMaxStep })
+      );
+    }
+    // Teletransporte forzado
     if (data.currentSection && data.currentSection !== this._currentSection) {
       Router.navigate(data.currentSection);
     }
+    // Desbloqueo remoto de pausa
     if (data.pausaUnlocked === true) {
-      console.log("[App.js] 🔓 Desbloqueo manual recibido.");
       this._isRemoteUnlockEnabled = true;
       if (this._currentSection === "pausa") this._showPausaButton();
     }
@@ -73,7 +138,7 @@ const App = {
       return;
     }
 
-    // Protección URL
+    // Protección Anti-Salto (Hack de URL)
     if (sectionData.step > this._userMaxStep + 1) {
       const safeSection = config.stepToSectionMap[this._userMaxStep] || "intro";
       Router.navigate(safeSection, true);
@@ -83,65 +148,56 @@ const App = {
     if (this._currentSection) await this._fadeOut();
 
     this._currentSection = sectionId;
-    document.body.className = `view-${sectionId}`;
 
-    // --- CORRECCIÓN CRÍTICA DE FONDOS ---
-    // 1. Aplicamos el fondo al body
+    // --- IMPORTANTE: FONDOS POR JS (Para evitar error de rutas CSS) ---
     if (sectionData.background) {
       document.body.style.backgroundImage = `url('${sectionData.background}')`;
       document.body.style.backgroundSize = "cover";
-      document.body.style.backgroundPosition = "center center";
-      document.body.style.backgroundRepeat = "no-repeat";
+      document.body.style.backgroundPosition = "center";
       document.body.style.backgroundAttachment = "fixed";
     } else {
       document.body.style.backgroundImage = "none";
-      document.body.style.backgroundColor = "#000"; // Fondo negro por defecto si no hay imagen
+      document.body.style.backgroundColor = "#000";
     }
 
-    // 2. IMPORTANTE: Forzamos transparencia en el contenedor raíz
-    // Esto evita que el div principal tape la imagen del body
-    const appRoot = document.getElementById("app-root");
-    if (appRoot) {
-      appRoot.style.backgroundColor = "transparent";
-      appRoot.style.backgroundImage = "none";
-    }
-    // -------------------------------------
+    // Clases CSS opcionales
+    document.body.className = `view-${sectionId}`;
 
     if (this._isFirebaseConnected)
       FirebaseManager.updateCurrentLocation(sectionId);
 
+    // Guardar progreso si avanzamos
     if (sectionData.step > this._userMaxStep) {
       this._userMaxStep = sectionData.step;
-      if (this._isFirebaseConnected)
-        FirebaseManager.saveProgress(sectionData.step, sectionId);
       localStorage.setItem(
         "navidad_progress",
         JSON.stringify({ maxStep: sectionData.step })
       );
+      if (this._isFirebaseConnected)
+        FirebaseManager.saveProgress(sectionData.step, sectionId);
     }
 
     AudioManager.stopNarration();
     if (sectionId !== "countdown") Countdown.stop();
 
-    // Renderizar
     Render.section(sectionId);
 
-    // Verificar Audio
+    // --- LÓGICA DE AUDIO INSTANTÁNEO ---
+    // Si el audio no está iniciado (ej: F5) mostramos botón de reanudar
     if (
       !this._isAudioStarted &&
       sectionId !== "intro" &&
       sectionId !== "countdown"
     ) {
-      console.warn(
-        "[App.js] Audio bloqueado por recarga. Solicitando interacción..."
-      );
       Render.showResumeOverlay(() => {
-        console.log("[App.js] Audio reactivado por usuario.");
+        console.log("[App.js] Audio reactivado (Click).");
         this._isAudioStarted = true;
-        this._executeAudioLogic(sectionId, sectionData);
+        // Pasamos true para decir "ES UN RESUME, suena YA"
+        this._executeAudioLogic(sectionId, sectionData, true);
       });
     } else {
-      this._executeAudioLogic(sectionId, sectionData);
+      // Flujo normal
+      this._executeAudioLogic(sectionId, sectionData, false);
     }
 
     // Lógica Pausa
@@ -162,12 +218,13 @@ const App = {
     this._preloadNextSections(sectionId);
   },
 
-  _executeAudioLogic(sectionId, sectionData) {
+  _executeAudioLogic(sectionId, sectionData, isResume) {
     let bgmType = "main";
     if (sectionId === "countdown") bgmType = "final";
     else if (sectionId === "final") bgmType = "none";
     else if (sectionData.type === "intro") bgmType = "none";
 
+    // 1. Música de Fondo
     if (this._isAudioStarted && bgmType !== this._activeBGMType) {
       if (bgmType === "main") AudioManager.playBGM();
       else if (bgmType === "final") AudioManager.playBGMFinal();
@@ -175,14 +232,22 @@ const App = {
       this._activeBGMType = bgmType;
     } else if (sectionId === "countdown") {
       AudioManager.playBGMFinal();
+    } else if (isResume && bgmType === "main") {
+      // Si es resume, forzamos play para desbloquear el motor de audio
+      AudioManager.playBGM();
     }
 
     if (sectionId === "final") {
       this._videoElementForPausa = document.querySelector("video");
     }
 
+    // 2. Narración (Instantánea si es Resume)
     if (sectionData.audio && this._isAudioStarted) {
-      setTimeout(() => AudioManager.playNarration(sectionData.audio), 500);
+      if (isResume) {
+        AudioManager.playNarration(sectionData.audio); // Play YA
+      } else {
+        setTimeout(() => AudioManager.playNarration(sectionData.audio), 500); // Delay suave
+      }
     }
   },
 
@@ -194,19 +259,14 @@ const App = {
     }
     return new Promise((r) => setTimeout(r, 500));
   },
-
   _fadeIn() {
     const overlay = document.getElementById("fade-overlay");
     if (overlay) {
       overlay.style.opacity = "0";
-      setTimeout(() => {
-        // Doble seguridad para que el overlay no bloquee clicks ni visión
-        overlay.style.pointerEvents = "none";
-      }, 500);
+      setTimeout(() => (overlay.style.pointerEvents = "none"), 500);
     }
     return Promise.resolve();
   },
-
   _handleIntroPlay() {
     this._isAudioStarted = true;
     AudioManager.playBGM();
@@ -217,22 +277,18 @@ const App = {
       AudioManager.playNarration(config.sections.intro.audio);
     }
   },
-
   _handleAudioUnlock() {
     if (!this._isAudioStarted) {
       this._isAudioStarted = true;
       if (this._currentSection === "countdown") AudioManager.playBGMFinal();
     }
   },
-
   _handleNarrationEnd() {
     if (this._currentSection === "intro") Render.showActions();
   },
-
   async _checkPausaUnlock() {
     if (this._isRemoteUnlockEnabled) {
       this._showPausaButton();
-      if (this._pausaCheckInterval) clearInterval(this._pausaCheckInterval);
       return;
     }
     const unlockDate = new Date(config.global.unlockDate).getTime();
@@ -244,13 +300,10 @@ const App = {
         now = new Date(d.utc_datetime).getTime();
       }
     } catch (e) {}
-
     if (now >= unlockDate) {
       this._showPausaButton();
-      if (this._pausaCheckInterval) clearInterval(this._pausaCheckInterval);
     }
   },
-
   _showPausaButton() {
     const acciones = document.getElementById("pausa-acciones");
     if (acciones) {
@@ -258,7 +311,6 @@ const App = {
       acciones.classList.add("visible-content");
     }
   },
-
   _handlePausaNext(target) {
     Router.navigate(target);
     setTimeout(() => {
@@ -270,7 +322,6 @@ const App = {
       }
     }, 100);
   },
-
   async _preloadCriticalAssets() {
     const intro = config.sections.intro;
     const decision = config.sections.decision;
@@ -287,7 +338,6 @@ const App = {
     } catch (e) {}
     Render.setIntroLoading(false);
   },
-
   _preloadNextSections(currentId) {
     const currentData = config.sections[currentId];
     if (currentData && currentData.onNavigate) {
