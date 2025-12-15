@@ -1,6 +1,6 @@
 /**
- * firebase-manager.js: Módulo para manejar Firebase (App del Cliente)
- * (Versión Final: Incluye detección de Hard Reset)
+ * firebase-manager.js: Gestor de Base de Datos
+ * (Versión: DOCUMENTO ÚNICO "valentino")
  */
 
 const {
@@ -18,12 +18,13 @@ const {
   firebaseConfig,
 } = window.firebaseSDK;
 
+// --- CLAVE: Este es el ID ÚNICO para todos los dispositivos ---
 const PROGRESS_DOC_ID = "valentino";
+// -------------------------------------------------------------
 
 let app;
 let auth;
 let db;
-let currentUserId = null;
 let currentMaxStep = 0;
 
 const init = () => {
@@ -35,49 +36,26 @@ const init = () => {
   return new Promise((resolve, reject) => {
     onAuthStateChanged(auth, (user) => {
       if (user) {
-        currentUserId = user.uid;
+        console.log("Usuario conectado (ID técnico):", user.uid);
+        // Aunque tenga un ID técnico único, usaremos 'valentino' para los datos
         resolve();
       } else {
         signInAnonymously(auth)
-          .then((cred) => {
-            currentUserId = cred.user.uid;
-            resolve();
-          })
-          .catch(reject);
+          .then(() => resolve())
+          .catch((error) => {
+            console.error("Error Auth:", error);
+            reject(error);
+          });
       }
     });
   });
 };
 
 /**
- * Suscribe a cambios en tiempo real.
- * Permite teletransporte y detección de reinicio remoto.
+ * Cargar progreso siempre del documento 'valentino'
  */
-const subscribeToProgress = (callback) => {
-  if (!db) return;
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
-
-  return onSnapshot(docRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      if (data.maxStep !== undefined) {
-        currentMaxStep = data.maxStep;
-      }
-      callback(data);
-    } else {
-      // --- DETECCIÓN DE HARD RESET ---
-      // El documento no existe, lo cual significa que el admin lo borró.
-      console.warn(
-        "[Firebase] Reset remoto detectado. Reiniciando experiencia..."
-      );
-      localStorage.removeItem("navidad_progress"); // Borrar caché local
-      window.location.reload(); // Recargar para volver a la Intro
-    }
-  });
-};
-
 const loadProgress = async () => {
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
   try {
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
@@ -85,19 +63,23 @@ const loadProgress = async () => {
       currentMaxStep = data.maxStep || 0;
       return data;
     }
-    return { maxStep: 0, lastSection: "intro" };
+    // Si no existe, creamos el perfil inicial
+    return { maxStep: 0, lastSection: "intro", pausaUnlocked: false };
   } catch (error) {
     console.error("[Firebase] Error carga:", error);
     return { maxStep: 0, lastSection: "intro" };
   }
 };
 
+/**
+ * Guardar progreso en 'valentino'
+ */
 const saveProgress = async (newStep, sectionId) => {
-  if (!currentUserId) return;
+  // Protección local: no bajar de nivel
   if (newStep <= currentMaxStep) return;
-
   currentMaxStep = newStep;
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
+
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
 
   try {
     await setDoc(
@@ -110,13 +92,15 @@ const saveProgress = async (newStep, sectionId) => {
       { merge: true }
     );
   } catch (error) {
-    console.error(error);
+    console.error("Error guardando progreso:", error);
   }
 };
 
+/**
+ * Actualizar ubicación actual (para que el Admin lo vea)
+ */
 const updateCurrentLocation = async (sectionId) => {
-  if (!currentUserId) return;
-  const docRef = doc(db, "progress", PROGRESS_DOC_ID);
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
   try {
     await setDoc(
       docRef,
@@ -127,13 +111,16 @@ const updateCurrentLocation = async (sectionId) => {
       { merge: true }
     );
   } catch (error) {
-    console.error(error);
+    console.error("Error ubicación:", error);
   }
 };
 
+/**
+ * Guardar intentos de acertijos en la subcolección de 'valentino'
+ */
 const saveRiddleAttempt = async (riddleId, attempt, isCorrect) => {
-  if (!currentUserId) return;
   try {
+    // Guardamos en: progress/valentino/attempts
     const colRef = collection(db, "progress", PROGRESS_DOC_ID, "attempts");
     await addDoc(colRef, {
       riddleId,
@@ -142,8 +129,26 @@ const saveRiddleAttempt = async (riddleId, attempt, isCorrect) => {
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error guardando intento:", error);
   }
+};
+
+/**
+ * Escuchar cambios en 'valentino' (Teletransporte)
+ */
+const subscribeToProgress = (callback) => {
+  if (!db) return;
+  const docRef = doc(db, "progress", PROGRESS_DOC_ID); // <--- SIEMPRE 'valentino'
+
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (data.maxStep !== undefined) {
+        currentMaxStep = data.maxStep;
+      }
+      callback(data);
+    }
+  });
 };
 
 export default {
