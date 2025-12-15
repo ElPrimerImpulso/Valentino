@@ -1,47 +1,65 @@
 /**
- * countdown.js: El Temporizador
+ * countdown.js: El Temporizador (Versión Calendario Preciso)
+ * Corregido para calcular años reales y no matemáticos.
  */
 const Countdown = {
   _intervalId: null,
   _revealTimeouts: [],
-  _previousValues: {}, // Para rastrear cambios (Request 6)
+  _previousValues: {},
 
   /**
-   * Calcula el tiempo restante, incluyendo AÑOS.
+   * Calcula el tiempo restante usando fechas calendario reales.
+   * Evita el error de las "horas fantasma" de los años bisiestos promedio.
    */
-  _calculateTime(targetDate) {
-    // ... (idéntico) ...
-    const diff = targetDate - new Date().getTime();
-    if (diff <= 0) return null;
-    const s = 1000,
-      m = s * 60,
-      h = m * 60,
-      d = h * 24,
-      y = d * 365.25;
-    const años = Math.floor(diff / y);
-    const dias = Math.floor((diff % y) / d);
+  _calculateTime(targetDateMs) {
+    const now = new Date();
+    const target = new Date(targetDateMs);
+
+    // Si ya pasó la fecha
+    if (target <= now) return null;
+
+    // 1. Calcular AÑOS completos reales (ej: 2027 - 2025 = 2)
+    let years = target.getFullYear() - now.getFullYear();
+
+    // Creamos una fecha temporal sumando esos años a hoy para ver si nos pasamos
+    // (Ej: Si hoy es 20/12/2025 y target 15/12/2027, la resta de años da 2,
+    // pero al sumar 2 años nos pasamos del target, así que en realidad falta 1 año y pico).
+    const dateWithYears = new Date(now);
+    dateWithYears.setFullYear(now.getFullYear() + years);
+
+    // Si al sumar los años nos pasamos de la fecha target, restamos un año
+    if (dateWithYears > target) {
+      years--;
+      dateWithYears.setFullYear(now.getFullYear() + years);
+    }
+
+    // 2. Calcular la diferencia restante desde "Hoy + Años" hasta el Target
+    const diff = target.getTime() - dateWithYears.getTime();
+
+    // 3. Convertir esa diferencia restante en días, horas, etc.
+    const s = 1000;
+    const m = s * 60;
+    const h = m * 60;
+    const d = h * 24;
+
+    const dias = Math.floor(diff / d);
     const horas = Math.floor((diff % d) / h);
     const minutos = Math.floor((diff % h) / m);
     const segundos = Math.floor((diff % m) / s);
-    return { años, dias, horas, minutos, segundos };
+
+    return { años: years, dias, horas, minutos, segundos };
   },
 
-  /**
-   * Revela una unidad del contador con "fade arriba"
-   */
   _revealUnit(id, value, delay) {
     const timer = setTimeout(() => {
       const unitEl = document.getElementById(`unit-${id}`);
       const spanEl = document.getElementById(`countdown-${id}`);
 
       if (unitEl && spanEl) {
-        console.log(`[Countdown.js] Revelando: ${id} (delay: ${delay}ms)`);
-        // Poner el valor inicial
+        // Formato a 2 dígitos (0 -> 00)
         const textValue = String(value).padStart(2, "0");
         spanEl.textContent = textValue;
-        this._previousValues[id] = textValue; // Guardar valor inicial
-
-        // Añadir clase para la animación CSS (fade arriba)
+        this._previousValues[id] = textValue;
         unitEl.classList.add("is-visible");
       }
     }, delay);
@@ -49,77 +67,53 @@ const Countdown = {
     this._revealTimeouts.push(timer);
   },
 
-  /**
-   * --- NUEVA FUNCIÓN (Request 6) ---
-   * Actualiza un número y aplica el "aumento leve" (pulse)
-   */
   _updateUnit(id, value) {
     const spanEl = document.getElementById(`countdown-${id}`);
-    if (!spanEl) return; // Salir si el elemento no existe
+    if (!spanEl) return;
 
     const textValue = String(value).padStart(2, "0");
 
-    // Solo animar si el valor CAMBIÓ
     if (this._previousValues[id] !== textValue) {
-      this._previousValues[id] = textValue; // Actualizar valor
-      spanEl.textContent = textValue; // Poner nuevo valor
-
-      // Aplicar el "aumento leve"
+      this._previousValues[id] = textValue;
+      spanEl.textContent = textValue;
       spanEl.classList.add("is-pulsing");
-
-      // Quitar la clase después de que termine la animación (CSS es 150ms)
       setTimeout(() => {
         spanEl.classList.remove("is-pulsing");
       }, 150);
     }
   },
 
-  /**
-   * Inicia la cuenta regresiva.
-   */
   start(targetDateISO) {
     console.log("[Countdown.js] Iniciando...");
     this.stop();
 
-    const targetDate = new Date(targetDateISO).getTime();
+    const targetDateMs = new Date(targetDateISO).getTime();
 
-    const initialTime = this._calculateTime(targetDate);
+    // Cálculo inicial
+    const initialTime = this._calculateTime(targetDateMs);
 
     if (!initialTime) {
-      // El tiempo ya se cumplió, revelar todo en 0
-      console.log("[Countdown.js] Tiempo cumplido. Revelando en 0.");
-      this._revealUnit("seconds", 0, 0);
-      this._revealUnit("minutes", 0, 0);
-      this._revealUnit("hours", 0, 0);
-      this._revealUnit("days", 0, 0);
-      this._revealUnit("years", 0, 0);
+      this._revealAllZeros();
       return;
     }
 
-    // --- CAMBIO: Revelación con retardo y suspense (Request 3 y 4) ---
-    // Empezando por segundos (abajo) y subiendo
-    this._revealUnit("seconds", initialTime.segundos, 1500); // 1.5s
-    this._revealUnit("minutes", initialTime.minutos, 3000); // 3.0s
-    this._revealUnit("hours", initialTime.horas, 4500); // 4.5s
-    this._revealUnit("days", initialTime.dias, 6000); // 6.0s
-    this._revealUnit("years", initialTime.años, 7500); // 7.5s
+    // Secuencia de revelación (De segundos a años)
+    this._revealUnit("seconds", initialTime.segundos, 1500);
+    this._revealUnit("minutes", initialTime.minutos, 3000);
+    this._revealUnit("hours", initialTime.horas, 4500);
+    this._revealUnit("days", initialTime.dias, 6000);
+    this._revealUnit("years", initialTime.años, 7500);
 
-    // 3. Iniciar el temporizador de actualización
+    // Loop de actualización
     this._intervalId = setInterval(() => {
-      const time = this._calculateTime(targetDate);
+      const time = this._calculateTime(targetDateMs);
 
       if (!time) {
         this.stop();
-        // Asegurarse de que todo esté en 00 al parar
-        this._updateUnit("seconds", 0);
-        this._updateUnit("minutes", 0);
-        this._updateUnit("hours", 0);
-        this._updateUnit("days", 0);
-        this._updateUnit("years", 0);
+        this._updateAllZeros();
         return;
       }
 
-      // --- CAMBIO: Usar el helper de "aumento leve" (Request 6) ---
       this._updateUnit("seconds", time.segundos);
       this._updateUnit("minutes", time.minutos);
       this._updateUnit("hours", time.horas);
@@ -128,18 +122,26 @@ const Countdown = {
     }, 1000);
   },
 
-  /**
-   * Detiene la cuenta regresiva.
-   */
   stop() {
     if (this._intervalId) {
-      console.log("[Countdown.js] Deteniendo.");
       clearInterval(this._intervalId);
       this._intervalId = null;
     }
     this._revealTimeouts.forEach(clearTimeout);
     this._revealTimeouts = [];
-    this._previousValues = {}; // Limpiar valores
+    this._previousValues = {};
+  },
+
+  _revealAllZeros() {
+    ["seconds", "minutes", "hours", "days", "years"].forEach((unit) =>
+      this._revealUnit(unit, 0, 0)
+    );
+  },
+
+  _updateAllZeros() {
+    ["seconds", "minutes", "hours", "days", "years"].forEach((unit) =>
+      this._updateUnit(unit, 0)
+    );
   },
 };
 

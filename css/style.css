@@ -679,6 +679,8 @@ body.admin-view {
 .video-container video::-webkit-media-controls-enclosure {
   display: none !important;
 }
+/* ... dentro de style.css ... */
+
 .countdown-display {
   display: flex;
   flex-direction: column;
@@ -686,7 +688,10 @@ body.admin-view {
   gap: 1.5rem;
   justify-content: center;
   flex-wrap: nowrap;
+  /* CORRECCIÓN: Forzamos color blanco base para todo este bloque */
+  color: #ffffff;
 }
+
 .countdown-unit {
   display: flex;
   flex-direction: column;
@@ -696,21 +701,31 @@ body.admin-view {
   transform: translateY(20px);
   transition: opacity 0.8s ease-out, transform 0.8s ease-out;
 }
+
 .countdown-unit.is-visible {
   opacity: 1;
   transform: translateY(0);
 }
+
 .countdown-unit span {
+  /* CORRECCIÓN: Aseguramos que el número sea blanco brillante */
+  color: #ffffff;
   font-size: 4rem;
   font-weight: bold;
   transition: transform 0.15s ease-out;
+  /* Opcional: Un pequeño brillo para que resalte más en el negro */
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
+
 .countdown-unit label {
   font-size: 1rem;
   text-transform: uppercase;
   letter-spacing: 2px;
+  /* CORRECCIÓN: Blanco con un poco de transparencia para jerarquía visual */
+  color: rgba(255, 255, 255, 0.7);
   opacity: 0.8;
 }
+
 .countdown-unit span.is-pulsing {
   transform: scale(1.1);
 }

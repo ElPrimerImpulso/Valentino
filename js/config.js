@@ -133,7 +133,7 @@ const config = {
       title: null,
       narrative:
         "Todavía no es el momento.<br>Pero lo reconocerás cuando llegue.",
-      background: "./assets/img/explicacion3-bg.png",
+      background: null,
       audio: "./assets/audio/pausa.mp3",
       buttonText: "Siguiente",
       onNavigate: "final",
